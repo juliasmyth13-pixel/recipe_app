@@ -1,31 +1,20 @@
-
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-
-import CategoriesScreen from './src/screens/CategoriesScreen';
-import RecipesScreen from './src/screens/RecipesScreen';
-
-const Stack = createNativeStackNavigator();
+import { StatusBar } from 'expo-status-bar';
+import { StyleSheet, Text, View } from 'react-native';
 
 export default function App() {
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Categories">
-        <Stack.Screen 
-          name="Categories" 
-          component={CategoriesScreen}
-          options={{ title: 'Recipe Categories' }}
-        />
-        <Stack.Screen 
-          name="Recipes" 
-          component={RecipesScreen}
-          options={({ route }) => ({
-            title: route.params?.category || 'Recipes',
-          })}
-        />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <View style={styles.container}>
+      <Text>Open up App.js to start working on your app!</Text>
+      <StatusBar style="auto" />
+    </View>
   );
 }
 
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
