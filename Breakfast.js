@@ -6,52 +6,40 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  ActivityIndicator,
   Image,
 } from 'react-native';
 
-// ===============================
-// 1. Helper: extract ingredients
-// ===============================
+/* Extract ingredient list from the MealDB meal object */
 function getIngredientsFromMealDB(meal) {
   const ingredients = [];
-
   for (let i = 1; i <= 20; i++) {
     const key = `strIngredient${i}`;
     const value = meal[key];
-
-    if (value && typeof value === 'string' && value.trim().length > 0) {
+    if (value && value.trim()) {
       ingredients.push(value.trim().toLowerCase());
     }
   }
-
   return ingredients;
 }
 
-// ===============================
-// 2. Helper: classify recipes
-//    (vegan / vegetarian / regular)
-// ===============================
+/* Keyword lists for diet classification */
 const MEAT_KEYWORDS = [
-  'chicken', 'beef', 'pork', 'bacon', 'ham', 'lamb', 'veal', 'turkey',
-  'sausage', 'prosciutto', 'salami', 'chorizo', 'meat', 'ground beef'
+  'chicken','beef','pork','bacon','ham','lamb','veal','turkey',
+  'sausage','prosciutto','salami','chorizo','meat','ground beef',
 ];
 
 const FISH_KEYWORDS = [
-  'fish', 'salmon', 'tuna', 'shrimp', 'prawn', 'cod', 'anchovy', 'sardine',
-  'crab', 'lobster', 'mussel', 'clam', 'oyster'
+  'fish','salmon','tuna','shrimp','prawn','cod','anchovy','sardine',
+  'crab','lobster','mussel','clam','oyster',
 ];
 
 const DAIRY_KEYWORDS = [
-  'milk', 'cheese', 'mozzarella', 'cheddar', 'parmesan', 'butter', 'cream',
-  'yogurt', 'yoghurt', 'ghee', 'ricotta', 'feta', 'sour cream'
+  'milk','cheese','mozzarella','cheddar','parmesan','butter','cream',
+  'yogurt','yoghurt','ghee','ricotta','feta','sour cream',
 ];
 
-const EGG_KEYWORDS = [
-  'egg', 'eggs', 'egg yolk', 'egg white', 'mayonnaise'
-];
-
-const HONEY_KEYWORDS = ['honey', 'royal jelly'];
+const EGG_KEYWORDS = ['egg','eggs','egg yolk','egg white','mayonnaise'];
+const HONEY_KEYWORDS = ['honey','royal jelly'];
 
 function containsAny(ingredients, keywords) {
   return ingredients.some(ing =>
@@ -59,209 +47,131 @@ function containsAny(ingredients, keywords) {
   );
 }
 
-/**
- * Returns one of: "vegan", "vegetarian", "regular"
- */
+/* Classify recipe as vegan / vegetarian / regular */
 function classifyDiet(ingredients) {
   const hasMeat = containsAny(ingredients, MEAT_KEYWORDS);
-  const hasFishOrSeafood = containsAny(ingredients, FISH_KEYWORDS);
+  const hasFish = containsAny(ingredients, FISH_KEYWORDS);
   const hasDairy = containsAny(ingredients, DAIRY_KEYWORDS);
   const hasEgg = containsAny(ingredients, EGG_KEYWORDS);
   const hasHoney = containsAny(ingredients, HONEY_KEYWORDS);
 
-  // If it has meat or fish → regular
-  if (hasMeat || hasFishOrSeafood) {
-    return 'regular';
-  }
-
-  // At least vegetarian now.
-  // If no dairy, eggs, or honey → vegan
-  if (!hasDairy && !hasEgg && !hasHoney) {
-    return 'vegan';
-  }
-
-  // Vegetarian (can have eggs/dairy)
+  if (hasMeat || hasFish) return 'regular';
+  if (!hasDairy && !hasEgg && !hasHoney) return 'vegan';
   return 'vegetarian';
 }
 
-// ===============================
-// 3. UI component
-// ===============================
-
 const DIET_OPTIONS = ['regular', 'vegetarian', 'vegan'];
 
-export default function Breakfast() {
+// 👇 NOTE: navigation is received as a prop here
+export default function Breakfast({ navigation }) {
   const [diet, setDiet] = useState('regular');
   const [allRecipes, setAllRecipes] = useState([]);
   const [filteredRecipes, setFilteredRecipes] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
 
-  // Fetch breakfast recipes on mount
   useEffect(() => {
-    fetchBreakfastRecipes();
+    loadRecipes();
   }, []);
 
-  // Re-filter whenever diet/allRecipes changes
   useEffect(() => {
-    const subset = allRecipes.filter(meal => meal._dietCategory === diet);
-    setFilteredRecipes(subset);
+    const list = allRecipes.filter(recipe => recipe._dietCategory === diet);
+    setFilteredRecipes(list);
   }, [diet, allRecipes]);
 
-  const fetchBreakfastRecipes = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  const loadRecipes = async () => {
+    // 1) Fetch list of breakfast meals
+    const listRes = await fetch(
+      'https://www.themealdb.com/api/json/v1/1/filter.php?c=Breakfast'
+    );
+    const listJson = await listRes.json();
+    const basicMeals = listJson.meals || [];
 
-      // 1) Get a list of breakfast meals (basic info)
-      const listRes = await fetch(
-        'https://www.themealdb.com/api/json/v1/1/filter.php?c=Breakfast'
+    const detailedMeals = [];
+
+    // 2) For each meal, fetch full details and classify diet
+    for (let meal of basicMeals) {
+      const detailRes = await fetch(
+        `https://www.themealdb.com/api/json/v1/1/lookup.php?i=${meal.idMeal}`
       );
-      const listJson = await listRes.json();
-      const basicMeals = listJson.meals || [];
+      const detailJson = await detailRes.json();
+      const fullMeal = detailJson.meals?.[0];
 
-      // 2) For each meal, get full details (ingredients) and classify diet
-      const detailedMealsPromises = basicMeals.map(async (meal) => {
-        const detailRes = await fetch(
-          `https://www.themealdb.com/api/json/v1/1/lookup.php?i=${meal.idMeal}`
-        );
-        const detailJson = await detailRes.json();
-        const fullMeal =
-          detailJson.meals && detailJson.meals.length > 0
-            ? detailJson.meals[0]
-            : null;
-
-        if (!fullMeal) return null;
-
+      if (fullMeal) {
         const ingredients = getIngredientsFromMealDB(fullMeal);
-        const dietCategory = classifyDiet(ingredients); // "vegan" | "vegetarian" | "regular"
-
-        return {
-          ...fullMeal,
-          _dietCategory: dietCategory,
-        };
-      });
-
-      const detailedMealsRaw = await Promise.all(detailedMealsPromises);
-      const detailedMeals = detailedMealsRaw.filter(Boolean); // remove nulls
-
-      setAllRecipes(detailedMeals);
-    } catch (err) {
-      console.error(err);
-      setError('Could not load breakfast recipes.');
-      setAllRecipes([]);
-      setFilteredRecipes([]);
-    } finally {
-      setLoading(false);
+        const dietType = classifyDiet(ingredients);
+        detailedMeals.push({ ...fullMeal, _dietCategory: dietType });
+      }
     }
+
+    setAllRecipes(detailedMeals);
   };
 
   const renderDietButton = (option) => {
-    const isActive = diet === option;
-
-    let label = option.charAt(0).toUpperCase() + option.slice(1);
-    // If you want "vegantrain" instead of "vegetarian", you could:
-    // if (option === 'vegetarian') label = 'VeganTrain';
-
+    const selected = diet === option;
     return (
       <TouchableOpacity
         key={option}
-        style={[styles.dietButton, isActive && styles.dietButtonActive]}
         onPress={() => setDiet(option)}
+        style={[styles.dietButton, selected && styles.dietButtonSelected]}
       >
         <Text
           style={[
             styles.dietButtonText,
-            isActive && styles.dietButtonTextActive,
+            selected && styles.dietButtonTextSelected,
           ]}
         >
-          {label}
+          {option.charAt(0).toUpperCase() + option.slice(1)}
         </Text>
       </TouchableOpacity>
     );
   };
 
+  // 👇 When a recipe is pressed, navigate to RecipeDetails
   const renderRecipeItem = ({ item }) => (
-    <View style={styles.recipeCard}>
-      {item.strMealThumb ? (
-        <Image
-          source={{ uri: item.strMealThumb }}
-          style={styles.recipeImage}
-        />
-      ) : null}
-      <View style={styles.recipeTextContainer}>
+    <TouchableOpacity
+      style={styles.recipeCard}
+      onPress={() => navigation.navigate('RecipeDetails', { recipe: item })}
+    >
+      {item.strMealThumb && (
+        <Image source={{ uri: item.strMealThumb }} style={styles.recipeImage} />
+      )}
+
+      <View style={styles.recipeInfo}>
         <Text style={styles.recipeTitle}>{item.strMeal}</Text>
         <Text style={styles.recipeTag}>
           Diet: {item._dietCategory.toUpperCase()}
         </Text>
-        {item.strArea ? (
-          <Text style={styles.recipeMeta}>Origin: {item.strArea}</Text>
-        ) : null}
+        {item.strArea && (
+          <Text style={styles.recipeArea}>Origin: {item.strArea}</Text>
+        )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
     <View style={styles.container}>
-      <Text style={styles.screenTitle}>Breakfast</Text>
-      <Text style={styles.subtitle}>Choose a diet type:</Text>
+      <Text style={styles.title}>Breakfast</Text>
+      <Text style={styles.subtitle}>Choose a diet:</Text>
 
-      <View style={styles.dietRow}>{DIET_OPTIONS.map(renderDietButton)}</View>
+      <View style={styles.dietRow}>
+        {DIET_OPTIONS.map(renderDietButton)}
+      </View>
 
-      {loading && (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" />
-          <Text style={styles.statusText}>Loading recipes...</Text>
-        </View>
-      )}
-
-      {error && !loading && (
-        <View style={styles.center}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      )}
-
-      {!loading && !error && filteredRecipes.length === 0 && (
-        <View style={styles.center}>
-          <Text style={styles.statusText}>
-            No {diet} breakfast recipes found.
-          </Text>
-        </View>
-      )}
-
-      {!loading && filteredRecipes.length > 0 && (
-        <FlatList
-          data={filteredRecipes}
-          keyExtractor={(item) => item.idMeal}
-          renderItem={renderRecipeItem}
-          contentContainerStyle={styles.listContent}
-        />
-      )}
+      <FlatList
+        data={filteredRecipes}
+        keyExtractor={(item) => item.idMeal}
+        renderItem={renderRecipeItem}
+        contentContainerStyle={{ paddingVertical: 10 }}
+      />
     </View>
   );
 }
 
-// ===============================
-// 4. Styles
-// ===============================
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-  },
-  screenTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    marginBottom: 12,
-  },
-  dietRow: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
+  container: { flex: 1, padding: 16 },
+  title: { fontSize: 28, fontWeight: 'bold' },
+  subtitle: { fontSize: 16, marginBottom: 12 },
+  dietRow: { flexDirection: 'row', marginBottom: 16 },
+
   dietButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -269,62 +179,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginRight: 8,
   },
-  dietButtonActive: {
-    backgroundColor: '#000',
-  },
-  dietButtonText: {
-    fontSize: 14,
-  },
-  dietButtonTextActive: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  center: {
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  statusText: {
-    marginTop: 8,
-    fontSize: 14,
-  },
-  errorText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: 'red',
-  },
-  listContent: {
-    paddingVertical: 8,
-  },
+  dietButtonSelected: { backgroundColor: '#000' },
+  dietButtonText: { fontSize: 14 },
+  dietButtonTextSelected: { color: '#fff', fontWeight: '600' },
+
   recipeCard: {
     flexDirection: 'row',
     borderWidth: 1,
     borderRadius: 10,
     padding: 8,
-    marginBottom: 10,
-    overflow: 'hidden',
+    marginBottom: 12,
   },
   recipeImage: {
     width: 80,
     height: 80,
+    marginRight: 12,
     borderRadius: 8,
-    marginRight: 10,
   },
-  recipeTextContainer: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  recipeTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  recipeTag: {
-    fontSize: 12,
-    opacity: 0.7,
-    marginTop: 2,
-  },
-  recipeMeta: {
-    fontSize: 12,
-    opacity: 0.7,
-    marginTop: 2,
-  },
+  recipeInfo: { flex: 1, justifyContent: 'center' },
+  recipeTitle: { fontSize: 18, fontWeight: '600' },
+  recipeTag: { fontSize: 12, color: '#777' },
+  recipeArea: { fontSize: 12, color: '#777' },
 });
