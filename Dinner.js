@@ -1,13 +1,6 @@
-// Breakfast.js
+// Dinner.js
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  Image,
-} from 'react-native';
+import {View, Text, StyleSheet, TouchableOpacity, FlatList, Image,} from 'react-native';
 
 /* Extract ingredient list from the MealDB meal object */
 function getIngredientsFromMealDB(meal) {
@@ -38,8 +31,12 @@ const DAIRY_KEYWORDS = [
   'yogurt','yoghurt','ghee','ricotta','feta','sour cream',
 ];
 
-const EGG_KEYWORDS = ['egg','eggs','egg yolk','egg white','mayonnaise'];
-const HONEY_KEYWORDS = ['honey','royal jelly'];
+const EGG_KEYWORDS = [
+  'egg','eggs','egg yolk','egg white','mayonnaise'
+];
+const HONEY_KEYWORDS = [
+  'honey','royal jelly'
+];
 
 function containsAny(ingredients, keywords) {
   return ingredients.some(ing =>
@@ -78,7 +75,7 @@ export default function Dinner({ navigation }) {
   }, [diet, allRecipes]);
 
   const loadRecipes = async () => {
-    // 1) Fetch list of breakfast meals
+    // 1) Fetch list of dinner meals
     const listRes = await fetch(
       'https://www.themealdb.com/api/json/v1/1/filter.php?c=Pasta'
     );
