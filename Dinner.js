@@ -74,33 +74,39 @@ export default function Dinner({ navigation }) {
     setFilteredRecipes(list);
   }, [diet, allRecipes]);
 
-  const loadRecipes = async () => {
-    // 1) Fetch list of dinner meals
-    const listRes = await fetch(
-      'https://www.themealdb.com/api/json/v1/1/filter.php?c=Pasta'
-    );
-    const listJson = await listRes.json();
-    const basicMeals = listJson.meals || [];
+  function loadRecipes() {
+   fetch('https://www.themealdb.com/api/json/v1/1/filter.php?c=Pasta')
+    .then(response => response.json())
+    .then(listJson => {
+      const basicMeals = listJson.meals || [];
+      const detailedMeals = [];
 
-    const detailedMeals = [];
+      const processMeal = (index) => {
+        if (index >= basicMeals.length) {
+          setAllRecipes(prevRecipes => [...prevRecipes, ...detailedMeals]);
+          return;
+        }
 
-    // 2) For each meal, fetch full details and classify diet
-    for (let meal of basicMeals) {
-      const detailRes = await fetch(
-        `https://www.themealdb.com/api/json/v1/1/lookup.php?i=${meal.idMeal}`
-      );
-      const detailJson = await detailRes.json();
-      const fullMeal = detailJson.meals?.[0];
+        const meal = basicMeals[index];
+        fetch(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${meal.idMeal}`)
+          .then(detailRes => detailRes.json())
+          .then(detailJson => {
+            const fullMeal = detailJson.meals?.[0];
+            if (fullMeal) {
+              const ingredients = getIngredientsFromMealDB(fullMeal);
+              const dietType = classifyDiet(ingredients);
+              detailedMeals.push({ ...fullMeal, _dietCategory: dietType });
+            }
 
-      if (fullMeal) {
-        const ingredients = getIngredientsFromMealDB(fullMeal);
-        const dietType = classifyDiet(ingredients);
-        detailedMeals.push({ ...fullMeal, _dietCategory: dietType });
-      }
-    }
+            processMeal(index + 1);
+          })
+          .catch(error => console.error(error));
+      };
 
-    setAllRecipes(detailedMeals);
-  };
+      processMeal(0);
+    })
+    .catch(error => console.error(error));
+}
 
   const renderDietButton = (option) => {
     const selected = diet === option;
@@ -164,10 +170,22 @@ export default function Dinner({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  title: { fontSize: 28, fontWeight: 'bold' },
-  subtitle: { fontSize: 16, marginBottom: 12 },
-  dietRow: { flexDirection: 'row', marginBottom: 16 },
+  container: { 
+    flex: 1, 
+    padding: 16 
+  },
+  title: { 
+    fontSize: 28, 
+    fontWeight: 'bold' 
+  },
+  subtitle: { 
+    fontSize: 16, 
+    marginBottom: 12 
+  },
+  dietRow: { 
+    flexDirection: 'row', 
+    marginBottom: 16 
+  },
 
   dietButton: {
     paddingVertical: 8,
@@ -176,9 +194,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginRight: 8,
   },
-  dietButtonSelected: { backgroundColor: '#000' },
-  dietButtonText: { fontSize: 14 },
-  dietButtonTextSelected: { color: '#fff', fontWeight: '600' },
+  dietButtonSelected: { 
+    backgroundColor: '#000' 
+  },
+  dietButtonText: { 
+    fontSize: 14 
+  },
+  dietButtonTextSelected: { 
+    color: '#fff', 
+    fontWeight: '600' 
+  },
 
   recipeCard: {
     flexDirection: 'row',
@@ -193,8 +218,20 @@ const styles = StyleSheet.create({
     marginRight: 12,
     borderRadius: 8,
   },
-  recipeInfo: { flex: 1, justifyContent: 'center' },
-  recipeTitle: { fontSize: 18, fontWeight: '600' },
-  recipeTag: { fontSize: 12, color: '#777' },
-  recipeArea: { fontSize: 12, color: '#777' },
+  recipeInfo: { 
+    flex: 1, 
+    justifyContent: 'center' 
+  },
+  recipeTitle: { 
+    fontSize: 18, 
+    fontWeight: '600' 
+  },
+  recipeTag: { 
+    fontSize: 12, 
+    color: '#777' 
+  },
+  recipeArea: { 
+    fontSize: 12, 
+    color: '#777' 
+  },
 });
